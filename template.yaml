@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AWS AppConfig Lambda Extension Demo
+
+
+Mappings:
+  # https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions.html
+  LambdaExtensionArnMap:
+    ap-northeast-1:
+      Arn: arn:aws:lambda:ap-northeast-1:980059726660:layer:AWS-AppConfig-Extension:1
+    us-west-1:
+      Arn: arn:aws:lambda:eu-west-1:434848589818:layer:AWS-AppConfig-Extension:1
+    us-east-1:
+      Arn: arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension:1
+
+Resources:
+
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      MemorySize: 128
+      Timeout: 5
+      Tracing: Active
+      Layers:
+        - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:2"
+        - !FindInMap [LambdaExtensionArnMap, !Ref "AWS::Region", Arn]
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - CloudWatchLambdaInsightsExecutionRolePolicy
+        - Statement:
+            Effect: Allow
+            Action:
+              - appconfig:GetConfiguration
+            Resource: "*"
+      Environment:
+        Variables:
+          LAMBDA_INSIGHTS_LOG_LEVEL: info
+#          enableExclamationPoints: 'True'
+#          numberOfExclamationPoints: 2
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /hello
+            Method: get
+
+  ConfigApplication:
+    Type: AWS::AppConfig::Application
+    Properties:
+      Name: helloworld
+
+  DemoEnvironment:
+    Type: AWS::AppConfig::Environment
+    Properties:
+      ApplicationId: !Ref ConfigApplication
+      Name: demo
+
+  ConfigurationProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref ConfigApplication
+      Name: ExclamationPoints
+      LocationUri: hosted
+
+  HostedConfiguration:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties:
+      ApplicationId: !Ref ConfigApplication
+      ConfigurationProfileId: !Ref ConfigurationProfile
+      Content: >
+        {
+          "enableExclamationPoints": true,
+          "numberOfExclamationPoints": 5
+        }
+      ContentType: 'application/json'
+
+  Deployment:
+    Type: AWS::AppConfig::Deployment
+    Properties:
+      ApplicationId: !Ref ConfigApplication
+      ConfigurationProfileId: !Ref ConfigurationProfile
+      ConfigurationVersion: !Ref HostedConfiguration
+      DeploymentStrategyId: AppConfig.Linear50PercentEvery30Seconds
+      EnvironmentId: !Ref DemoEnvironment
+
+Outputs:
+
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/hello"
+#  HelloWorldFunction:
+#    Description: "Hello World Lambda Function ARN"
+#    Value: !GetAtt HelloWorldFunction.Arn
+#  HelloWorldFunctionIamRole:
+#    Description: "Implicit IAM Role created for Hello World function"
+#    Value: !GetAtt HelloWorldFunctionRole.Arn

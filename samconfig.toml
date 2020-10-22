@@ -1,0 +1,9 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "appconfig-lambda-extension-demo"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-aolnj9hf9ket"
+s3_prefix = "appconfig-lambda-extension-demo"
+region = "ap-northeast-1"
+capabilities = "CAPABILITY_IAM"
